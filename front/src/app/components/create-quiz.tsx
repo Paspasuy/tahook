@@ -9,7 +9,7 @@ interface Question {
   id: string;
   question: string;
   answers: string[];
-  correctAnswer: number;
+  correctAnswers: number[]; // Changed from correctAnswer: number
   timeLimit: number;
 }
 
@@ -26,7 +26,7 @@ export function CreateQuiz({ onNavigate, auth, socket }: CreateQuizProps) {
       id: "1",
       question: "",
       answers: ["", "", "", ""],
-      correctAnswer: 0,
+      correctAnswers: [0],
       timeLimit: 20,
     },
   ]);
@@ -42,7 +42,7 @@ export function CreateQuiz({ onNavigate, auth, socket }: CreateQuizProps) {
       id: Date.now().toString(),
       question: "",
       answers: ["", "", "", ""],
-      correctAnswer: 0,
+      correctAnswers: [0],
       timeLimit: 20,
     };
     setQuestions([...questions, newQuestion]);
@@ -65,6 +65,29 @@ export function CreateQuiz({ onNavigate, auth, socket }: CreateQuizProps) {
           const newAnswers = [...q.answers];
           newAnswers[answerIndex] = value;
           return { ...q, answers: newAnswers };
+        }
+        return q;
+      })
+    );
+  };
+
+  const toggleCorrectAnswer = (questionId: string, answerIndex: number) => {
+    setQuestions(
+      questions.map((q) => {
+        if (q.id === questionId) {
+          const isCorrect = q.correctAnswers.includes(answerIndex);
+          let newCorrect;
+          if (isCorrect) {
+            // Don't allow removing the last correct answer
+            if (q.correctAnswers.length > 1) {
+              newCorrect = q.correctAnswers.filter((idx) => idx !== answerIndex);
+            } else {
+              newCorrect = q.correctAnswers;
+            }
+          } else {
+            newCorrect = [...q.correctAnswers, answerIndex];
+          }
+          return { ...q, correctAnswers: newCorrect };
         }
         return q;
       })
@@ -105,10 +128,10 @@ export function CreateQuiz({ onNavigate, auth, socket }: CreateQuizProps) {
           quizId: quiz.id,
           index,
           text: question.question.trim(),
-          type: "singlechoice",
+          type: question.correctAnswers.length > 1 ? "multichoice" : "singlechoice",
           options: question.answers.map((answer, answerIndex) => ({
             text: answer.trim(),
-            isCorrect: answerIndex === question.correctAnswer,
+            isCorrect: question.correctAnswers.includes(answerIndex),
           })),
           timeLimitSeconds: question.timeLimit,
           points: 1000,
@@ -227,9 +250,9 @@ export function CreateQuiz({ onNavigate, auth, socket }: CreateQuizProps) {
                   <div
                     key={aIndex}
                     className={`${colors[aIndex]} rounded-2xl p-1 cursor-pointer hover:scale-105 transition-transform ${
-                      question.correctAnswer === aIndex ? "ring-4 ring-yellow-400" : ""
+                      question.correctAnswers.includes(aIndex) ? "ring-4 ring-yellow-400" : ""
                     }`}
-                    onClick={() => updateQuestion(question.id, "correctAnswer", aIndex)}
+                    onClick={() => toggleCorrectAnswer(question.id, aIndex)}
                   >
                     <div className="bg-white rounded-xl p-6">
                       <div className="flex items-center gap-3 mb-3">
@@ -249,7 +272,7 @@ export function CreateQuiz({ onNavigate, auth, socket }: CreateQuizProps) {
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
-                      {question.correctAnswer === aIndex && (
+                      {question.correctAnswers.includes(aIndex) && (
                         <div className="text-sm font-bold text-green-600">
                           ✓ {t("Correct Answer")}
                         </div>

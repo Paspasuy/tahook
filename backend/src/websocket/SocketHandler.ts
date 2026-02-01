@@ -238,7 +238,7 @@ export function setupSocketHandlers(io: Server): void {
     });
 
     // Show results for current question (owner only)
-    socket.on("show_results", (callback) => {
+    socket.on("show_results", async (callback) => {
       const room = gameManager.getRoomBySocketId(socket.id);
       if (!room) {
         callback?.({ error: "Not in a room" });
@@ -250,11 +250,19 @@ export function setupSocketHandlers(io: Server): void {
         return;
       }
 
-      // Calculate scores
-      room.calculateScores();
+      // Calculate scores (now handles immediate updates, but we keep the call for safety)
+      // room.calculateScores(); // logic moved to submit_answer
 
       const results = room.getQuestionResults();
       const leaderboard = room.getLeaderboard();
+
+      // Save intermediate results to database
+      try {
+        const playerScores: PlayerScore[] = room.getFinalResults();
+        await resultService.saveResults(room.state.quizId, playerScores);
+      } catch (error) {
+        console.error("Failed to save intermediate results:", error);
+      }
 
       io.to(room.state.code).emit("question_results", {
         ...results,

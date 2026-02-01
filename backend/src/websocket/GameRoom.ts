@@ -27,6 +27,7 @@ export interface GameRoomState {
 
 export class GameRoom {
   public state: GameRoomState;
+  private scores: Map<string, number> = new Map(); // userId -> score
 
   constructor(
     code: string,
@@ -59,11 +60,14 @@ export class GameRoom {
       userId,
       userName,
       socketId,
-      score: 0,
+      score: this.scores.get(userId) || 0,
       currentAnswer: null,
       answerTime: null,
     };
     this.state.players.set(socketId, player);
+    if (!this.scores.has(userId)) {
+      this.scores.set(userId, 0);
+    }
     return player;
   }
 
@@ -147,46 +151,43 @@ export class GameRoom {
       return false;
     }
 
+    const answerTime = Date.now() - this.state.questionStartTime;
     player.currentAnswer = answerIds;
-    player.answerTime = Date.now() - this.state.questionStartTime;
+    player.answerTime = answerTime;
+
+    // Calculate score immediately on submission
+    const correctOptionIds = question.options
+      .filter((opt) => opt.isCorrect)
+      .map((opt) => opt.id);
+
+    let isCorrect = false;
+    if (question.type === QuestionType.SINGLE_CHOICE) {
+      isCorrect =
+        answerIds.length === 1 && correctOptionIds.includes(answerIds[0]);
+    } else {
+      const selectedSet = new Set(answerIds);
+      const correctSet = new Set(correctOptionIds);
+      isCorrect =
+        selectedSet.size === correctSet.size &&
+        [...selectedSet].every((id) => correctSet.has(id));
+    }
+
+    if (isCorrect) {
+      const timeLimitMs = question.timeLimitSeconds * 1000;
+      const speedBonus = Math.max(0, 1 - answerTime / timeLimitMs);
+      const baseScore = question.points * 0.5;
+      const bonusScore = question.points * 0.5 * speedBonus;
+      const pointsToAdd = Math.round(baseScore + bonusScore);
+
+      player.score += pointsToAdd;
+      this.scores.set(player.userId, player.score);
+    }
 
     return true;
   }
 
   calculateScores(): void {
-    const question = this.getCurrentQuestion();
-    if (!question) return;
-
-    const correctOptionIds = question.options
-      .filter((opt) => opt.isCorrect)
-      .map((opt) => opt.id);
-
-    for (const player of this.state.players.values()) {
-      if (!player.currentAnswer || player.answerTime === null) {
-        continue; // No answer submitted
-      }
-
-      let isCorrect = false;
-
-      if (question.type === QuestionType.SINGLE_CHOICE) {
-        // For single choice, exactly one answer should match
-        isCorrect =
-          player.currentAnswer.length === 1 &&
-          correctOptionIds.includes(player.currentAnswer[0]);
-      } else {
-        // For multi choice, all correct answers must be selected and no wrong ones
-        const selectedSet = new Set(player.currentAnswer);
-        const correctSet = new Set(correctOptionIds);
-        isCorrect =
-          selectedSet.size === correctSet.size &&
-          [...selectedSet].every((id) => correctSet.has(id));
-      }
-
-      if (isCorrect) {
-        // Simple score: each correct answer is 1 point
-        player.score += 1;
-      }
-    }
+    // Logic moved to submitAnswer for immediate updates
   }
 
   getQuestionResults(): {
@@ -208,9 +209,14 @@ export class GameRoom {
 
     const playerResults = Array.from(this.state.players.values()).map(
       (player) => {
+        const question = this.getCurrentQuestion();
+        const correctOptionIds = question?.options
+          .filter((opt) => opt.isCorrect)
+          .map((opt) => opt.id) || [];
+
         let correct = false;
         if (player.currentAnswer) {
-          if (question.type === QuestionType.SINGLE_CHOICE) {
+          if (question?.type === QuestionType.SINGLE_CHOICE) {
             correct =
               player.currentAnswer.length === 1 &&
               correctOptionIds.includes(player.currentAnswer[0]);
@@ -253,13 +259,21 @@ export class GameRoom {
   }
 
   getFinalResults(): { odId: string; userName: string; score: number }[] {
-    return Array.from(this.state.players.values())
-      .sort((a, b) => b.score - a.score)
-      .map((p) => ({
-        odId: p.userId,
-        userName: p.userName,
-        score: p.score,
-      }));
+    return Array.from(this.scores.entries()).map(([userId, score]) => {
+      // Find player name from current players if available, otherwise "Unknown"
+      let userName = "Unknown";
+      for (const p of this.state.players.values()) {
+        if (p.userId === userId) {
+          userName = p.userName;
+          break;
+        }
+      }
+      return {
+        odId: userId,
+        userName,
+        score,
+      };
+    });
   }
 
   hasAllPlayersAnswered(): boolean {
