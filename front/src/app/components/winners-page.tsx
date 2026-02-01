@@ -1,28 +1,18 @@
-import { Trophy, Medal, Home } from 'lucide-react';
-import { motion } from 'motion/react';
-
-interface Player {
-  name: string;
-  score: number;
-  correct: number;
-  total: number;
-}
+import { Trophy, Medal, Home } from "lucide-react";
+import { motion } from "motion/react";
+import { LeaderboardEntry } from "@/app/api/types";
+import { t } from "@/app/utils/i18n";
 
 interface WinnersPageProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: "home" | "create") => void;
+  data: { leaderboard: LeaderboardEntry[]; quizTitle?: string };
 }
 
-export function WinnersPage({ onNavigate }: WinnersPageProps) {
-  const players: Player[] = [
-    { name: 'Jordan', score: 9847, correct: 10, total: 10 },
-    { name: 'Alex', score: 9523, correct: 10, total: 10 },
-    { name: 'Sam', score: 9201, correct: 9, total: 10 },
-    { name: 'Taylor', score: 8765, correct: 9, total: 10 },
-    { name: 'Morgan', score: 8234, correct: 8, total: 10 },
-    { name: 'Casey', score: 7891, correct: 8, total: 10 },
-    { name: 'Riley', score: 7456, correct: 7, total: 10 },
-    { name: 'Avery', score: 6923, correct: 7, total: 10 },
-  ];
+export function WinnersPage({ onNavigate, data }: WinnersPageProps) {
+  const players = [...data.leaderboard].sort((a, b) => {
+    if (a.place && b.place) return a.place - b.place;
+    return b.score - a.score;
+  });
 
   const podiumColors = [
     'bg-gradient-to-b from-yellow-400 to-yellow-600',
@@ -52,9 +42,11 @@ export function WinnersPage({ onNavigate }: WinnersPageProps) {
             <Trophy className="size-24 text-yellow-300 drop-shadow-lg" />
           </motion.div>
           <h1 className="text-6xl font-bold text-white mb-4 drop-shadow-lg">
-            Game Results!
+            {t("Game Results!")}
           </h1>
-          <p className="text-2xl text-white/90">Amazing performance everyone!</p>
+          <p className="text-2xl text-white/90">
+            {data.quizTitle ? `${t("Quiz")}: ${data.quizTitle}` : t("Amazing performance everyone!")}
+          </p>
         </div>
 
         {/* Podium */}
@@ -62,6 +54,7 @@ export function WinnersPage({ onNavigate }: WinnersPageProps) {
           <div className="flex items-end justify-center gap-4 max-w-4xl mx-auto">
             {[1, 0, 2].map((index) => {
               const player = players[index];
+              if (!player) return null;
               const position = index === 0 ? 1 : index === 1 ? 0 : 2;
               
               return (
@@ -75,13 +68,11 @@ export function WinnersPage({ onNavigate }: WinnersPageProps) {
                   <div className="bg-white rounded-3xl shadow-2xl p-6 mb-4 w-full">
                     <div className="text-6xl mb-2 text-center">{medals[position].icon}</div>
                     <p className="text-2xl font-bold text-gray-800 text-center mb-2">
-                      {player.name}
+                      {player.userName}
                     </p>
                     <div className="text-center">
                       <p className="text-3xl font-bold text-purple-600">{player.score}</p>
-                      <p className="text-sm text-gray-600">
-                        {player.correct}/{player.total} correct
-                      </p>
+                      <p className="text-sm text-gray-600">{t("points")}</p>
                     </div>
                   </div>
                   <div className={`${podiumColors[position]} ${podiumHeights[position]} w-full rounded-t-2xl flex items-center justify-center shadow-xl`}>
@@ -97,12 +88,12 @@ export function WinnersPage({ onNavigate }: WinnersPageProps) {
         <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-8 mb-8">
           <h2 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
             <Medal className="size-8 text-purple-600" />
-            Full Leaderboard
+            {t("Full Leaderboard")}
           </h2>
           <div className="space-y-3">
             {players.map((player, index) => (
               <motion.div
-                key={index}
+                key={player.userId}
                 initial={{ x: -100, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.6 + index * 0.05 }}
@@ -116,14 +107,12 @@ export function WinnersPage({ onNavigate }: WinnersPageProps) {
                   {index + 1}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xl font-bold text-gray-800">{player.name}</p>
-                  <p className="text-sm text-gray-600">
-                    {player.correct}/{player.total} correct answers
-                  </p>
+                  <p className="text-xl font-bold text-gray-800">{player.userName}</p>
+                  <p className="text-sm text-gray-600">{t("Place")} #{player.place}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-purple-600">{player.score}</p>
-                  <p className="text-sm text-gray-600">points</p>
+                  <p className="text-sm text-gray-600">{t("points")}</p>
                 </div>
               </motion.div>
             ))}
@@ -137,13 +126,13 @@ export function WinnersPage({ onNavigate }: WinnersPageProps) {
             className="flex items-center gap-3 bg-white text-gray-800 px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-lg"
           >
             <Home className="size-6" />
-            Back to Home
+            {t("Back to Home")}
           </button>
           <button
             onClick={() => onNavigate('create')}
             className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-lg"
           >
-            Create New Quiz
+            {t("Create New Quiz")}
           </button>
         </div>
       </div>

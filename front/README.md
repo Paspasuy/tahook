@@ -5,6 +5,12 @@
 
   ## Running the code
 
+  Set API URL (optional, defaults to `http://localhost:3000`):
+
+  ```
+  VITE_API_URL=http://localhost:3000
+  ```
+
   Run `npm i` to install the dependencies.
 
   Run `npm run dev` to start the development server.

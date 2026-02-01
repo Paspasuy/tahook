@@ -1,5 +1,9 @@
-import { useState } from 'react';
-import { ArrowLeft, Plus, Trash2, Play } from 'lucide-react';
+import { useState } from "react";
+import { ArrowLeft, Plus, Trash2, Play } from "lucide-react";
+import { Socket } from "socket.io-client";
+import { questionApi, quizApi } from "@/app/api";
+import { AuthUser } from "@/app/api/types";
+import { t } from "@/app/utils/i18n";
 
 interface Question {
   id: string;
@@ -10,40 +14,34 @@ interface Question {
 }
 
 interface CreateQuizProps {
-  onNavigate: (page: string, quizData?: any) => void;
+  onNavigate: (page: "home" | "create" | "waiting", quizData?: any) => void;
+  auth: { token: string; user: AuthUser } | null;
+  socket: Socket | null;
 }
 
-export function CreateQuiz({ onNavigate }: CreateQuizProps) {
-  const [quizTitle, setQuizTitle] = useState('');
+export function CreateQuiz({ onNavigate, auth, socket }: CreateQuizProps) {
+  const [quizTitle, setQuizTitle] = useState("");
   const [questions, setQuestions] = useState<Question[]>([
     {
-      id: '1',
-      question: '',
-      answers: ['', '', '', ''],
+      id: "1",
+      question: "",
+      answers: ["", "", "", ""],
       correctAnswer: 0,
       timeLimit: 20,
     },
   ]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const colors = [
-    'bg-red-500',
-    'bg-blue-500',
-    'bg-yellow-500',
-    'bg-green-500',
-  ];
+  const colors = ["bg-red-500", "bg-blue-500", "bg-yellow-500", "bg-green-500"];
 
-  const shapes = [
-    '△',
-    '◇',
-    '○',
-    '□',
-  ];
+  const shapes = ["△", "◇", "○", "□"];
 
   const addQuestion = () => {
     const newQuestion: Question = {
       id: Date.now().toString(),
-      question: '',
-      answers: ['', '', '', ''],
+      question: "",
+      answers: ["", "", "", ""],
       correctAnswer: 0,
       timeLimit: 20,
     };
@@ -57,11 +55,7 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
   };
 
   const updateQuestion = (id: string, field: keyof Question, value: any) => {
-    setQuestions(
-      questions.map((q) =>
-        q.id === id ? { ...q, [field]: value } : q
-      )
-    );
+    setQuestions(questions.map((q) => (q.id === id ? { ...q, [field]: value } : q)));
   };
 
   const updateAnswer = (questionId: string, answerIndex: number, value: string) => {
@@ -77,13 +71,74 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
     );
   };
 
-  const handleLaunchQuiz = () => {
-    const quizData = {
-      title: quizTitle || 'Untitled Quiz',
-      questions,
-      pin: Math.floor(100000 + Math.random() * 900000).toString(),
-    };
-    onNavigate('waiting', quizData);
+  const validateQuiz = (): string | null => {
+    if (!quizTitle.trim()) return t("Quiz title is required");
+    if (questions.length === 0) return t("At least one question is required");
+    for (const question of questions) {
+      if (!question.question.trim()) return t("All questions must have text");
+      if (question.answers.some((answer) => !answer.trim())) {
+        return t("All answers must be filled");
+      }
+    }
+    return null;
+  };
+
+  const handleLaunchQuiz = async () => {
+    if (!auth || !socket) {
+      setError(t("Login required to create a quiz"));
+      return;
+    }
+    const validationError = validateQuiz();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const quiz = await quizApi.createQuiz(auth.token, quizTitle.trim());
+
+      for (let index = 0; index < questions.length; index++) {
+        const question = questions[index];
+        await questionApi.createQuestion(auth.token, {
+          quizId: quiz.id,
+          index,
+          text: question.question.trim(),
+          type: "singlechoice",
+          options: question.answers.map((answer, answerIndex) => ({
+            text: answer.trim(),
+            isCorrect: answerIndex === question.correctAnswer,
+          })),
+          timeLimitSeconds: question.timeLimit,
+          points: 1000,
+        });
+      }
+
+      const publishedQuiz = await quizApi.publishQuiz(auth.token, quiz.id);
+
+      const roomCode = await new Promise<string>((resolve, reject) => {
+        socket.emit("create_room", { quizId: quiz.id }, (response: any) => {
+          if (response?.error) {
+            reject(new Error(response.error));
+            return;
+          }
+          resolve(response.code as string);
+        });
+      });
+
+      onNavigate("waiting", {
+        mode: "host",
+        roomCode,
+        quizTitle: publishedQuiz.title,
+        quizId: quiz.id,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create quiz";
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -94,7 +149,7 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => onNavigate('home')}
+                onClick={() => onNavigate("home")}
                 className="p-3 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ArrowLeft className="size-6" />
@@ -104,19 +159,21 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
                   type="text"
                   value={quizTitle}
                   onChange={(e) => setQuizTitle(e.target.value)}
-                  placeholder="Enter quiz title..."
+                  placeholder={t("Enter quiz title...")}
                   className="text-3xl font-bold text-gray-800 border-none outline-none w-full"
                 />
               </div>
             </div>
             <button
               onClick={handleLaunchQuiz}
-              className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-lg"
+              disabled={saving}
+              className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play className="size-6" />
-              Launch Quiz
+              {saving ? t("Creating...") : t("Launch Quiz")}
             </button>
           </div>
+          {error && <div className="mt-4 text-red-600 font-semibold">{error}</div>}
         </div>
 
         {/* Questions */}
@@ -132,9 +189,9 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
                     type="text"
                     value={question.question}
                     onChange={(e) =>
-                      updateQuestion(question.id, 'question', e.target.value)
+                      updateQuestion(question.id, "question", e.target.value)
                     }
-                    placeholder="Type your question here..."
+                    placeholder={t("Type your question here...")}
                     className="text-2xl font-bold text-gray-800 border-none outline-none flex-1"
                   />
                 </div>
@@ -149,12 +206,14 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
 
               {/* Time Limit */}
               <div className="mb-6">
-                <label className="text-sm text-gray-600 mb-2 block">Time Limit (seconds)</label>
+                <label className="text-sm text-gray-600 mb-2 block">
+                  {t("Time Limit (seconds)")}
+                </label>
                 <input
                   type="number"
                   value={question.timeLimit}
                   onChange={(e) =>
-                    updateQuestion(question.id, 'timeLimit', parseInt(e.target.value))
+                    updateQuestion(question.id, "timeLimit", parseInt(e.target.value))
                   }
                   min="5"
                   max="120"
@@ -168,13 +227,15 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
                   <div
                     key={aIndex}
                     className={`${colors[aIndex]} rounded-2xl p-1 cursor-pointer hover:scale-105 transition-transform ${
-                      question.correctAnswer === aIndex ? 'ring-4 ring-yellow-400' : ''
+                      question.correctAnswer === aIndex ? "ring-4 ring-yellow-400" : ""
                     }`}
-                    onClick={() => updateQuestion(question.id, 'correctAnswer', aIndex)}
+                    onClick={() => updateQuestion(question.id, "correctAnswer", aIndex)}
                   >
                     <div className="bg-white rounded-xl p-6">
                       <div className="flex items-center gap-3 mb-3">
-                        <div className={`${colors[aIndex]} text-white size-10 rounded-lg flex items-center justify-center text-2xl font-bold`}>
+                        <div
+                          className={`${colors[aIndex]} text-white size-10 rounded-lg flex items-center justify-center text-2xl font-bold`}
+                        >
                           {shapes[aIndex]}
                         </div>
                         <input
@@ -183,13 +244,15 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
                           onChange={(e) =>
                             updateAnswer(question.id, aIndex, e.target.value)
                           }
-                          placeholder={`Answer ${aIndex + 1}`}
+                          placeholder={`${t("Answer")} ${aIndex + 1}`}
                           className="flex-1 text-lg font-bold text-gray-800 border-none outline-none"
                           onClick={(e) => e.stopPropagation()}
                         />
                       </div>
                       {question.correctAnswer === aIndex && (
-                        <div className="text-sm font-bold text-green-600">✓ Correct Answer</div>
+                        <div className="text-sm font-bold text-green-600">
+                          ✓ {t("Correct Answer")}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -205,7 +268,7 @@ export function CreateQuiz({ onNavigate }: CreateQuizProps) {
           className="w-full bg-white rounded-3xl shadow-2xl p-8 hover:bg-gray-50 transition-colors flex items-center justify-center gap-3 text-gray-600 font-bold text-xl"
         >
           <Plus className="size-8" />
-          Add Question
+          {t("Add Question")}
         </button>
       </div>
     </div>

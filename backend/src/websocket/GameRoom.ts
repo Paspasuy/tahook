@@ -183,12 +183,8 @@ export class GameRoom {
       }
 
       if (isCorrect) {
-        // Score based on speed: max points if answered immediately, min 50% if answered at deadline
-        const timeLimitMs = question.timeLimitSeconds * 1000;
-        const speedBonus = Math.max(0, 1 - player.answerTime / timeLimitMs);
-        const baseScore = question.points * 0.5;
-        const bonusScore = question.points * 0.5 * speedBonus;
-        player.score += Math.round(baseScore + bonusScore);
+        // Simple score: each correct answer is 1 point
+        player.score += 1;
       }
     }
   }

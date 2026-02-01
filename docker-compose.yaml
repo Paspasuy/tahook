@@ -1,0 +1,35 @@
+# version: "3.9"
+
+services:
+  postgres:
+    image: postgres:17.4-alpine3.21
+    container_name: tahook-postgres
+    environment:
+      POSTGRES_DB: tahook
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - tahook_db:/var/lib/postgresql/data
+
+  # backend:
+  #   build:
+  #     context: ./backend
+  #   container_name: tahook-backend
+  #   environment:
+  #     DB_HOST: postgres
+  #     DB_PORT: 5432
+  #     DB_USERNAME: postgres
+  #     DB_PASSWORD: postgres
+  #     DB_NAME: tahook
+  #     PORT: 3000
+  #     JWT_SECRET: dev-secret-change-me
+  #     CORS_ORIGIN: http://localhost:5173
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - postgres
+
+volumes:
+  tahook_db:

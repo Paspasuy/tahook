@@ -4,6 +4,11 @@ export class InitialMigration1706800000000 implements MigrationInterface {
   name = "InitialMigration1706800000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Enable uuid-ossp extension for uuid_generate_v4
+    await queryRunner.query(`
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp"
+    `);
+
     // Create question_type enum
     await queryRunner.query(`
       CREATE TYPE "question_type_enum" AS ENUM ('singlechoice', 'multichoice')
@@ -116,10 +121,6 @@ export class InitialMigration1706800000000 implements MigrationInterface {
       CREATE INDEX "IDX_results_userId" ON "results" ("userId")
     `);
 
-    // Enable uuid-ossp extension for uuid_generate_v4
-    await queryRunner.query(`
-      CREATE EXTENSION IF NOT EXISTS "uuid-ossp"
-    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

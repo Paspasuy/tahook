@@ -19,6 +19,18 @@ CORS_ORIGIN=http://localhost:5173
 
 ## Setup
 
+### Docker Compose (recommended)
+
+From repo root:
+
+```bash
+docker compose up --build
+```
+
+The backend will be available at `http://localhost:3000` and PostgreSQL at `localhost:5432`.
+
+### Local
+
 1. Install dependencies:
 ```bash
 npm install
