@@ -28,6 +28,14 @@ export function WinnersPage({ onNavigate, data }: WinnersPageProps) {
     { icon: '🥉', color: 'text-orange-500' },
   ];
 
+  // podiumOrder maps visual positions [Left (2nd), Center (1st), Right (3rd)] 
+  // to the index in the sorted players array.
+  const podiumOrder = [
+    { playerIndex: 1, position: 1, label: "2" }, // Left: 2nd place (index 1)
+    { playerIndex: 0, position: 0, label: "1" }, // Center: 1st place (index 0)
+    { playerIndex: 2, position: 2, label: "3" }, // Right: 3rd place (index 2)
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400">
       <div className="container mx-auto px-4 py-8">
@@ -49,24 +57,24 @@ export function WinnersPage({ onNavigate, data }: WinnersPageProps) {
           </p>
         </div>
 
+
         {/* Podium */}
         <div className="mb-12">
           <div className="flex items-end justify-center gap-4 max-w-4xl mx-auto">
-            {[1, 0, 2].map((index) => {
-              const player = players[index];
-              if (!player) return null;
-              const position = index === 0 ? 1 : index === 1 ? 0 : 2;
+            {podiumOrder.map(({ playerIndex, position, label }) => {
+              const player = players[playerIndex];
+              if (!player) return <div key={position} className="flex-1" />; // Empty space if fewer than 3 players
               
               return (
                 <motion.div
-                  key={index}
+                  key={player.userId}
                   initial={{ y: 200, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: position * 0.2, type: 'spring', bounce: 0.4 }}
                   className="flex-1 flex flex-col items-center"
                 >
                   <div className="bg-white rounded-3xl shadow-2xl p-6 mb-4 w-full">
-                    <div className="text-6xl mb-2 text-center">{medals[position].icon}</div>
+                    <div className="text-6xl mb-2 text-center">{medals[playerIndex].icon}</div>
                     <p className="text-2xl font-bold text-gray-800 text-center mb-2">
                       {player.userName}
                     </p>
@@ -75,8 +83,8 @@ export function WinnersPage({ onNavigate, data }: WinnersPageProps) {
                       <p className="text-sm text-gray-600">{t("points")}</p>
                     </div>
                   </div>
-                  <div className={`${podiumColors[position]} ${podiumHeights[position]} w-full rounded-t-2xl flex items-center justify-center shadow-xl`}>
-                    <span className="text-white text-6xl font-bold">{position + 1}</span>
+                  <div className={`${podiumColors[playerIndex]} ${podiumHeights[playerIndex]} w-full rounded-t-2xl flex items-center justify-center shadow-xl`}>
+                    <span className="text-white text-6xl font-bold">{label}</span>
                   </div>
                 </motion.div>
               );
