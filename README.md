@@ -11,3 +11,11 @@
 
 
 [Ссылка на макет](https://www.figma.com/make/yEcvZ9FPi9VLy0HK34xHKn/Kahoot-like-Quiz-Website-Layout?p=f)
+
+Как выглядит приложение
+
+![Домашняя страница](assets/homepage.jpg)
+![Создание квиза](assets/create.jpg)
+![Активность ожидания](assets/join.jpg)
+![Геймплей](assets/gameplay.jpg)
+![Результаты](assets/results.jpg)
